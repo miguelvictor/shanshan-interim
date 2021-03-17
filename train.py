@@ -1,12 +1,27 @@
+from prettytable import PrettyTable
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    confusion_matrix,
+    roc_auc_score,
+)
 from torch.utils.data import DataLoader
-from sklearn.metrics import confusion_matrix
 
 from datasets import ShanshanDataset
 from models import SimGNN
 from parsers import parameter_parser
 
+import numpy as np
 import pytorch_lightning as pl
 import torch
+
+
+def format_confusion_matrix(cm):
+    x = PrettyTable()
+    x.field_names = ["", "Model (-)", "Model (+)"]
+    x.add_row(["Actual (-)", cm[0][0], cm[0][1]])
+    x.add_row(["Actual (+)", cm[1][0], cm[1][1]])
+    return x
 
 
 def train(epochs=3):
@@ -33,12 +48,22 @@ def train(epochs=3):
     with torch.no_grad():
         for data in ShanshanDataset(key='test'):
             target = data.pop('target')
-            prediction = torch.round(model(data)).squeeze()
+            prediction = torch.sigmoid(model(data)).squeeze()
             y_true.append(target)
             y_pred.append(prediction)
 
-        matrix = confusion_matrix(y_true, y_pred)
-        print('Confusion Matrix', matrix)
+        # calculate statistics
+        cm = confusion_matrix(y_true, np.around(y_pred))
+        acc = accuracy_score(y_true, np.around(y_pred))
+        score = roc_auc_score(y_true, y_pred)
+        report = classification_report(y_true, np.around(y_pred))
+
+        print('=' * 60)
+        print(f'Accuracy: {acc:.4%}')
+        print(f'ROC-AUC Score: {score:.4%}')
+        print(format_confusion_matrix(cm))
+        print(report)
+        print('=' * 60)
 
 
 if __name__ == '__main__':
